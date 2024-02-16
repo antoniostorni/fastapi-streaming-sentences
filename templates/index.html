@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Question Form</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <form id="questionForm">
+        <label for="question">Your Question:</label>
+        <input type="text" id="question" name="question">
+        <button type="submit">Submit</button>
+    </form>
+    <div id="response"></div>
+
+<script>
+    $(document).ready(function() {
+        $('#questionForm').submit(function(e) {
+            e.preventDefault();
+
+            // Clear previous response and indicate processing
+            $('#response').html('<p>Processing...</p>');
+
+            const responseContainer = $('#response');
+            responseContainer.empty(); // Clear the container for new responses
+
+            fetch('/question/', {
+                method: 'POST',
+                body: new FormData(this),
+                headers: {
+                    'Accept': 'text/plain'
+                }
+            })
+            .then(response => {
+                if (!response.body) {
+                    throw new Error('ReadableStream not yet supported in this browser.');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                // Read the stream
+                function read() {
+                    reader.read().then(({done, value}) => {
+                        if (done) {
+                            console.log('Stream completed');
+                            return;
+                        }
+                        // Decode the stream chunk and append it to the response container
+                        let chunk = decoder.decode(value, {stream: true});
+                        // Append line by line to maintain streaming illusion
+                        chunk.split('\n').forEach(line => {
+                            if (line) { // Avoid appending empty lines
+                                responseContainer.append($('<p>').text(line));
+                            }
+                        });
+
+                        read(); // Call read again to continue processing stream
+                    }).catch(error => {
+                        console.error('Error reading the stream', error);
+                        responseContainer.html('<p>Error reading response.</p>');
+                    });
+                }
+
+                read(); // Start reading the stream
+            })
+            .catch(error => {
+                console.error('Fetch error:', error);
+                responseContainer.html('<p>Error loading response.</p>');
+            });
+        });
+    });
+</script>
+
+</body>
+</html>
+
